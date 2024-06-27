@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Function to save form data to Chrome storage
+    console.log('Popup loaded');
+
     function saveFormData() {
         const project = {
             name: document.getElementById('name').value,
@@ -14,11 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
         chrome.storage.sync.set({ project: project }, function() {
-            console.log('Project data saved');
+            console.log('Project data saved:', project);
         });
     }
 
-    // Retrieve stored form data when the popup is opened
     chrome.storage.sync.get(['project'], function(result) {
         if (result.project) {
             document.getElementById('name').value = result.project.name;
@@ -41,15 +41,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('mirror').value = result.project.social.mirror[0];
                 }
             }
+            console.log('Project data loaded:', result.project);
         }
     });
 
-    // Add input event listeners to save form data in real-time
     document.querySelectorAll('input[type="text"]').forEach(input => {
         input.addEventListener('input', saveFormData);
     });
 
-    // Handle form submission
     document.getElementById('projectForm').addEventListener('submit', function(event) {
         event.preventDefault();
 
@@ -66,12 +65,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
 
-        // Save form data to storage (for real-time save)
         chrome.storage.sync.set({ project: project }, function() {
-            console.log('Project data saved');
+            console.log('Project data saved before submission:', project);
         });
 
-        // Send form data to the backend
+        console.log('Sending request to server with project data:', project);
+
         fetch('http://localhost:8080/createProject', {
             method: 'POST',
             headers: {
@@ -79,20 +78,24 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify(project)
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Received response:', response);
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(text) });
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('Success:', data);
             alert('Project created successfully!');
-            // Clear storage after successful submission
             chrome.storage.sync.remove('project', function() {
                 console.log('Project data cleared from storage');
             });
-            // Clear form fields after successful submission
             document.getElementById('projectForm').reset();
         })
         .catch((error) => {
             console.error('Error:', error);
-            alert('Error creating project');
+            alert('Error creating project: ' + error.message);
         });
     });
 });

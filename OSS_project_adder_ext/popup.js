@@ -8,12 +8,25 @@ document.addEventListener('DOMContentLoaded', function() {
             description: document.getElementById('description').value,
             websites: document.getElementById('website').value ? [{ url: document.getElementById('website').value }] : [],
             github: document.getElementById('github').value ? [{ url: document.getElementById('github').value }] : [],
-            social: {
-                twitter: document.getElementById('twitter').value ? [{ url: document.getElementById('twitter').value }] : [],
-                telegram: document.getElementById('telegram').value ? [{ url: document.getElementById('telegram').value }] : [],
-                mirror: document.getElementById('mirror').value ? [{ url: document.getElementById('mirror').value }] : []
-            }
+            social: {}
         };
+
+        if (document.getElementById('twitter').value) {
+            project.social.twitter = [{ url: document.getElementById('twitter').value }];
+        }
+
+        if (document.getElementById('telegram').value) {
+            project.social.telegram = [{ url: document.getElementById('telegram').value }];
+        }
+
+        if (document.getElementById('mirror').value) {
+            project.social.mirror = [{ url: document.getElementById('mirror').value }];
+        }
+
+        if (Object.keys(project.social).length === 0) {
+            delete project.social;
+        }
+
         chrome.storage.sync.set({ project: project }, function() {
             console.log('Project data saved:', project);
         });
@@ -31,13 +44,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('github').value = result.project.github[0].url;
             }
             if (result.project.social) {
-                if (result.project.social.twitter.length > 0) {
+                if (result.project.social.twitter && result.project.social.twitter.length > 0) {
                     document.getElementById('twitter').value = result.project.social.twitter[0].url;
                 }
-                if (result.project.social.telegram.length > 0) {
+                if (result.project.social.telegram && result.project.social.telegram.length > 0) {
                     document.getElementById('telegram').value = result.project.social.telegram[0].url;
                 }
-                if (result.project.social.mirror.length > 0) {
+                if (result.project.social.mirror && result.project.social.mirror.length > 0) {
                     document.getElementById('mirror').value = result.project.social.mirror[0].url;
                 }
             }
@@ -58,12 +71,24 @@ document.addEventListener('DOMContentLoaded', function() {
             description: document.getElementById('description').value,
             websites: document.getElementById('website').value ? [{ url: document.getElementById('website').value }] : [],
             github: document.getElementById('github').value ? [{ url: document.getElementById('github').value }] : [],
-            social: {
-                twitter: document.getElementById('twitter').value ? [{ url: document.getElementById('twitter').value }] : [],
-                telegram: document.getElementById('telegram').value ? [{ url: document.getElementById('telegram').value }] : [],
-                mirror: document.getElementById('mirror').value ? [{ url: document.getElementById('mirror').value }] : []
-            }
+            social: {}
         };
+
+        if (document.getElementById('twitter').value) {
+            project.social.twitter = [{ url: document.getElementById('twitter').value }];
+        }
+
+        if (document.getElementById('telegram').value) {
+            project.social.telegram = [{ url: document.getElementById('telegram').value }];
+        }
+
+        if (document.getElementById('mirror').value) {
+            project.social.mirror = [{ url: document.getElementById('mirror').value }];
+        }
+
+        if (Object.keys(project.social).length === 0) {
+            delete project.social;
+        }
 
         chrome.storage.sync.set({ project: project }, function() {
             console.log('Project data saved before submission:', project);

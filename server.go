@@ -17,9 +17,9 @@ type Project struct {
     Name        string   `json:"name"`
     DisplayName string   `json:"displayName"`
     Description string   `json:"description"`
-    Websites    []URL    `json:"websites"`
-    Github      []URL    `json:"github"`
-    Social      *Social  `json:"social"`
+    Websites    []URL    `json:"websites,omitempty"`
+    Github      []URL    `json:"github,omitempty"`
+    Social      *Social  `json:"social,omitempty"`
 }
 
 type URL struct {
@@ -27,9 +27,9 @@ type URL struct {
 }
 
 type Social struct {
-    Twitter  []URL `json:"twitter"`
-    Telegram []URL `json:"telegram"`
-    Mirror   []URL `json:"mirror"`
+    Twitter  []URL `json:"twitter,omitempty"`
+    Telegram []URL `json:"telegram,omitempty"`
+    Mirror   []URL `json:"mirror,omitempty"`
 }
 
 func main() {
@@ -102,8 +102,4 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 
 func runGitCommand(name string, args ...string) error {
     cmd := exec.Command(name, args...)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    cmd.Dir = "/Users/ahoura/oss-directory"
-    return cmd.Run()
-}
+    var out, errBuf strings.Builder

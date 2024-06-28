@@ -103,3 +103,13 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 func runGitCommand(name string, args ...string) error {
     cmd := exec.Command(name, args...)
     var out, errBuf strings.Builder
+    cmd.Stdout = &out
+    cmd.Stderr = &errBuf
+    cmd.Dir = "/Users/ahoura/oss-directory"
+    if err := cmd.Run(); err != nil {
+        log.Printf("Error running git command: %v\nOutput: %s\nError: %s\n", err, out.String(), errBuf.String())
+        return fmt.Errorf("error running git command: %v\nOutput: %s\nError: %s\n", err, out.String(), errBuf.String())
+    }
+    log.Printf("Git command output: %s\n", out.String())
+    return nil
+}

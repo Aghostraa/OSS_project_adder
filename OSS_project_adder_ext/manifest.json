@@ -1,21 +1,25 @@
 {
-    "manifest_version": 3,
-    "name": "YAML Project Creator",
+    "manifest_version": 2,
+    "name": "OSS Project Yaml Adder",
+    "description": "A Chrome extension to add projects to the OSS database.",
     "version": "1.0",
-    "description": "Create YAML project files and push them to GitHub.",
-    "permissions": ["storage", "activeTab", "scripting"],
+    "permissions": [
+      "storage",
+      "activeTab",
+      "http://localhost:8080/"  
+    ],
     "background": {
-        "service_worker": "background.js"
+      "scripts": ["background.js"],
+      "persistent": false
     },
-    "action": {
-        "default_popup": "popup.html",
-        "default_icon": {
-            "16": "icons/icon16.png",
-            "48": "icons/icon48.png",
-            "128": "icons/icon128.png"
-        }
+    "browser_action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+      }
     },
-    "host_permissions": [
-        "http://localhost:8080/*"
-    ]
-}
+    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'"
+  }
+  

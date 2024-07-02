@@ -85,12 +85,21 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := runGitCommand("git", "add", filePath); err != nil {
+	log.Printf("Project created: %+v\n", project)
+
+	// Run git commands
+	if err := runGitCommand("git", "add", "."); err != nil {
 		http.Error(w, fmt.Sprintf("Error adding file to git: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if err := runGitCommand("git", "commit", "-m", "Add new project "+project.Name); err != nil {
-		http.Error(w, fmt.Sprintf("Error committing file to git: %v", err), http.StatusInternalServerError)
+		if !strings.Contains(err.Error(), "nothing to commit, working tree clean") {
+			http.Error(w, fmt.Sprintf("Error committing file to git: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := runGitCommand("git", "pull", "origin", "main", "--rebase"); err != nil {
+		http.Error(w, fmt.Sprintf("Error pulling changes from git: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if err := runGitCommand("git", "push", "origin", "main"); err != nil {
@@ -98,9 +107,8 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Project created: %+v\n", project)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Project created successfully")
+	fmt.Fprintln(w, "Project created and changes pushed successfully")
 }
 
 func runGitCommand(name string, args ...string) error {

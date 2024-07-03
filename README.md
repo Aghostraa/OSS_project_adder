@@ -24,7 +24,7 @@ A Go application and Chrome extension to help users create YAML files for web3 p
 1. Clone the repository:
 
     ```sh
-    git clone https://github.com/<your-github-username>/yaml-project-creator.git
+    git clone https://github.com/aghostraa/yaml-project-creator.git
     cd yaml-project-creator
     ```
 

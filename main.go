@@ -33,6 +33,11 @@ type Social struct {
 	Mirror   []URL `json:"mirror,omitempty" yaml:"mirror,omitempty"`
 }
 
+type Response struct {
+	Message string `json:"message"`
+	Error   string `json:"error,omitempty"`
+}
+
 func main() {
 	http.HandleFunc("/createProject", createProjectHandler)
 	log.Println("Server started on :8080")
@@ -41,24 +46,21 @@ func main() {
 
 func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		setCorsHeaders(w)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
 		return
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	setCorsHeaders(w)
 
 	var project Project
 	if err := json.NewDecoder(r.Body).Decode(&project); err != nil {
-		http.Error(w, fmt.Sprintf("Error decoding JSON: %v", err), http.StatusBadRequest)
+		writeErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Error decoding JSON: %v", err))
 		return
 	}
 
@@ -66,7 +68,7 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := yaml.Marshal(&project)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error marshalling YAML: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error marshalling YAML: %v", err))
 		return
 	}
 
@@ -75,13 +77,13 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	firstChar := strings.ToLower(string(project.Name[0]))
 	dirPath := filepath.Join(gitDir, "data/projects", firstChar)
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		http.Error(w, fmt.Sprintf("Error creating directory: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error creating directory: %v", err))
 		return
 	}
 
 	filePath := filepath.Join(dirPath, fmt.Sprintf("%s.yaml", project.Name))
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		http.Error(w, fmt.Sprintf("Error writing file: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error writing file: %v", err))
 		return
 	}
 
@@ -89,26 +91,25 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Run git commands
 	if err := runGitCommand("git", "add", "."); err != nil {
-		http.Error(w, fmt.Sprintf("Error adding file to git: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error adding file to git: %v", err))
 		return
 	}
 	if err := runGitCommand("git", "commit", "-m", "Add new project "+project.Name); err != nil {
 		if !strings.Contains(err.Error(), "nothing to commit, working tree clean") {
-			http.Error(w, fmt.Sprintf("Error committing file to git: %v", err), http.StatusInternalServerError)
+			writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error committing file to git: %v", err))
 			return
 		}
 	}
 	if err := runGitCommand("git", "pull", "origin", "main", "--rebase"); err != nil {
-		http.Error(w, fmt.Sprintf("Error pulling changes from git: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pulling changes from git: %v", err))
 		return
 	}
 	if err := runGitCommand("git", "push", "origin", "main"); err != nil {
-		http.Error(w, fmt.Sprintf("Error pushing changes to git: %v", err), http.StatusInternalServerError)
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pushing changes to git: %v", err))
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Project created and changes pushed successfully")
+	writeSuccessResponse(w, "Project created and changes pushed successfully")
 }
 
 func runGitCommand(name string, args ...string) error {
@@ -123,4 +124,23 @@ func runGitCommand(name string, args ...string) error {
 	}
 	log.Printf("Git command output: %s\n", out.String())
 	return nil
+}
+
+func setCorsHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
+func writeErrorResponse(w http.ResponseWriter, statusCode int, message string) {
+	log.Println(message)
+	w.WriteHeader(statusCode)
+	response := Response{Error: message}
+	json.NewEncoder(w).Encode(response)
+}
+
+func writeSuccessResponse(w http.ResponseWriter, message string) {
+	w.WriteHeader(http.StatusOK)
+	response := Response{Message: message}
+	json.NewEncoder(w).Encode(response)
 }

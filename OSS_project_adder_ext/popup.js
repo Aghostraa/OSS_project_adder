@@ -90,11 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
             delete project.social;
         }
 
-        chrome.storage.sync.set({ project: project }, function() {
-            console.log('Project data saved before submission:', project);
-        });
-
-        console.log('Sending request to server with project data:', project);
+        console.log('Sending request to create project with data:', project);
 
         fetch('http://localhost:8080/createProject', {
             method: 'POST',
@@ -103,24 +99,67 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify(project)
         })
-        .then(response => {
-            console.log('Received response:', response);
-            if (!response.ok) {
-                return response.text().then(text => { throw new Error(text) });
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('Success:', data);
-            alert('Project created successfully!');
-            chrome.storage.sync.remove('project', function() {
-                console.log('Project data cleared from storage');
-            });
-            document.getElementById('projectForm').reset();
+            console.log('Project created:', data);
+            if (data.error) {
+                alert('Error creating project: ' + data.error);
+            } else {
+                alert('Project created successfully: ' + data.message);
+
+                // Enable the git buttons
+                document.getElementById('gitAddBtn').disabled = false;
+                document.getElementById('gitCommitBtn').disabled = false;
+                document.getElementById('gitPullBtn').disabled = false;
+                document.getElementById('gitPushBtn').disabled = false;
+            }
         })
         .catch((error) => {
-            console.error('Error:', error);
+            console.error('Error creating project:', error);
             alert('Error creating project: ' + error.message);
         });
     });
+
+    document.getElementById('gitAddBtn').addEventListener('click', function() {
+        runGitCommand('git add --all');
+    });
+
+    document.getElementById('gitCommitBtn').addEventListener('click', function() {
+        const commitMessage = prompt("Enter commit message:", "Add new project");
+        if (commitMessage) {
+            runGitCommand(`git commit -m "${commitMessage}"`);
+        }
+    });
+
+    document.getElementById('gitPullBtn').addEventListener('click', function() {
+        runGitCommand('git pull origin main --rebase');
+    });
+
+    document.getElementById('gitPushBtn').addEventListener('click', function() {
+        runGitCommand('git push origin main');
+    });
+
+    function runGitCommand(command) {
+        console.log(`Executing git command: ${command}`);
+        fetch('http://localhost:8080/runGitCommand', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ cmd: command })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Git command output:', data);
+            if (data.error) {
+                alert('Error executing git command: ' + data.error);
+            } else {
+                alert('Git command executed successfully: ' + data.message);
+            }
+        })
+        .catch((error) => {
+            console.error('Error executing git command:', error);
+            alert('Error executing git command: ' + error.message);
+        });
+    }
 });

@@ -1,123 +1,175 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Project YAML-Creator</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSS Project Yaml Adder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Roboto', Arial, sans-serif;
+            font-family: "Raleway", sans-serif;
+            background-color: #1f2726;
+            color: #cdd8d3;
             margin: 0;
-            padding: 24px;
-            width: 320px;
-            background-color: #ffffff;
-            color: #333333;
-            line-height: 1.6;
+            padding: 20px;
+            width: 300px;
         }
-    
+        .background-container {
+            background-color: #151a19;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            overflow: hidden;
+            mix-blend-mode: overlay;
+        }
+        .background-gradient-group {
+            display: block;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .background-gradient-green {
+            background: radial-gradient(
+                ellipse at 93.6% 37%,
+                rgba(13, 246, 185, 0.8) 0,
+                rgba(13, 246, 185, 0.2) 30%,
+                hsla(0, 0%, 100%, 0.1) 40%,
+                hsla(0, 0%, 100%, 0) 65%
+            );
+            width: 100%;
+            height: 100%;
+            position: absolute;
+        }
+        .background-gradient-yellow {
+            background: radial-gradient(
+                ellipse at 66.5% 35.8%,
+                rgba(251, 185, 13, 0.8) 0,
+                rgba(251, 185, 13, 0.3) 25%,
+                hsla(0, 0%, 100%, 0.1) 40%,
+                hsla(0, 0%, 100%, 0) 70%
+            );
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            z-index: -1;
+        }
         h1 {
-            font-size: 24px;
-            font-weight: 500;
-            margin-bottom: 24px;
-            color: #1a73e8;
+            font-size: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #cdd8d3;
         }
-    
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-    
         label {
+            display: block;
+            margin-top: 12px;
+            font-weight: 600;
             font-size: 14px;
-            margin-bottom: 4px;
-            color: #5f6368;
+            color: #cdd8d3;
         }
-    
         input[type="text"] {
-            padding: 12px;
-            margin-bottom: 16px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
+            width: 100%;
+            padding: 10px 12px;
+            margin-top: 5px;
+            background-color: rgba(42, 52, 51, 0.7);
+            border: 1px solid #5a6462;
+            color: #cdd8d3;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
-    
         input[type="text"]:focus {
             outline: none;
-            border-color: #1a73e8;
-            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+            border-color: #2a9d5e;
+            background-color: rgba(42, 52, 51, 0.9);
         }
-    
         button {
-            padding: 12px 16px;
-            border: none;
-            border-radius: 4px;
-            background-color: #1a73e8;
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #2a9d5e;
             color: white;
-            font-size: 14px;
-            font-weight: 500;
-            text-transform: uppercase;
+            border: none;
             cursor: pointer;
-            transition: background-color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            font-weight: 600;
+            width: 100%;
         }
-    
+
         button:hover {
-            background-color: #185abc;
-            box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+            background-color: #32bd71;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-    
-        button:disabled {
-            background-color: #dadce0;
-            color: #80868b;
-            cursor: not-allowed;
-            box-shadow: none;
+        
+        #clearDataBtn {
+            background-color: #d35a03;
+            margin-top: 10px;
         }
-    
+        #clearDataBtn:hover {
+            background-color: #fb6b04;
+        }
         #latestFileLog {
-            margin-top: 24px;
-            padding: 12px;
-            background-color: #f1f3f4;
-            border-radius: 4px;
+            margin-top: 20px;
             font-size: 14px;
-            color: #5f6368;
+            text-align: center;
+            padding: 10px;
+            background-color: rgba(42, 52, 51, 0.7);
+            border-radius: 8px;
         }
-    
         #latestFileName {
-            font-weight: 500;
-            color: #1a73e8;
+            font-weight: 600;
+            color: #2a9d5e;
         }
     </style>
 </head>
 <body>
+    <div class="background-container">
+        <div class="background-gradient-group">
+            <div class="background-gradient-yellow"></div>
+            <div class="background-gradient-green"></div>
+        </div>
+    </div>
+    
     <h1>YAML Project Creator</h1>
+    
     <form id="projectForm">
-        <label for="name">Project Name:</label>
-        <input type="text" id="name" name="name"><br>
-
-        <label for="displayName">Display Name:</label>
-        <input type="text" id="displayName" name="displayName"><br>
-
-        <label for="description">Description:</label>
-        <input type="text" id="description" name="description"><br>
-
-        <label for="website">Website URL:</label>
-        <input type="text" id="website" name="website"><br>
-
-        <label for="github">GitHub URL:</label>
-        <input type="text" id="github" name="github"><br>
-
-        <label for="twitter">Twitter URL:</label>
-        <input type="text" id="twitter" name="twitter"><br>
-
-        <label for="telegram">Telegram URL:</label>
-        <input type="text" id="telegram" name="telegram"><br>
-
-        <label for="mirror">Mirror URL:</label>
-        <input type="text" id="mirror" name="mirror"><br>
-
+        <label for="name">Project Name</label>
+        <input type="text" id="name" required placeholder="Enter project name">
+        
+        <label for="displayName">Display Name</label>
+        <input type="text" id="displayName" required placeholder="Enter display name">
+        
+        <label for="description">Description</label>
+        <input type="text" id="description" placeholder="Brief project description">
+        
+        <label for="website">Website URL</label>
+        <input type="text" id="website" placeholder="https://example.com">
+        
+        <label for="github">GitHub URL</label>
+        <input type="text" id="github" placeholder="https://github.com/username/repo">
+        
+        <label for="twitter">Twitter URL</label>
+        <input type="text" id="twitter" placeholder="https://twitter.com/username">
+        
+        <label for="telegram">Telegram URL</label>
+        <input type="text" id="telegram" placeholder="https://t.me/username">
+        
+        <label for="mirror">Mirror URL</label>
+        <input type="text" id="mirror" placeholder="https://mirror.xyz/username">
+        
         <button type="submit">Create Project</button>
     </form>
+    
     <button id="clearDataBtn">Clear Data</button>
-    <div id="latestFileLog">Latest file created: <span id="latestFileName">None</span></div>
+    
+    <div id="latestFileLog">
+        Latest file created: <span id="latestFileName">None</span>
+    </div>
+    
     <script src="popup.js"></script>
 </body>
 </html>

@@ -210,7 +210,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('input[type="text"]').forEach(input => {
                 input.value = '';
             });
-            alert('All data has been cleared.');
         });
     });
 

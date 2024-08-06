@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 )
@@ -34,12 +35,19 @@ type Social struct {
 }
 
 type Response struct {
-	Message string `json:"message"`
-	Error   string `json:"error,omitempty"`
+	Message    string `json:"message"`
+	Error      string `json:"error,omitempty"`
+	LatestFile string `json:"latestFile,omitempty"`
 }
+
+var (
+	latestFile string
+	mutex      sync.Mutex
+)
 
 func main() {
 	http.HandleFunc("/createProject", createProjectHandler)
+	http.HandleFunc("/getLatestFile", getLatestFileHandler)
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -87,7 +95,13 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update the latest file name
+	mutex.Lock()
+	latestFile = fmt.Sprintf("%s.yaml", project.Name)
+	mutex.Unlock()
+
 	log.Printf("Project created: %+v\n", project)
+	log.Printf("Latest file created: %s\n", latestFile)
 
 	// Run git commands
 	if err := runGitCommand("git", "add", "."); err != nil {
@@ -109,7 +123,28 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeSuccessResponse(w, "Project created and changes pushed successfully")
+	writeSuccessResponse(w, "Project created and changes pushed successfully", latestFile)
+}
+
+func getLatestFileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	mutex.Lock()
+	currentLatestFile := latestFile
+	mutex.Unlock()
+
+	writeSuccessResponse(w, "Latest file retrieved successfully", currentLatestFile)
+}
+
+func writeSuccessResponse(w http.ResponseWriter, message string, latestFile string) {
+	w.WriteHeader(http.StatusOK)
+	response := Response{Message: message, LatestFile: latestFile}
+	json.NewEncoder(w).Encode(response)
 }
 
 func runGitCommand(name string, args ...string) error {
@@ -136,11 +171,5 @@ func writeErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	log.Println(message)
 	w.WriteHeader(statusCode)
 	response := Response{Error: message}
-	json.NewEncoder(w).Encode(response)
-}
-
-func writeSuccessResponse(w http.ResponseWriter, message string) {
-	w.WriteHeader(http.StatusOK)
-	response := Response{Message: message}
 	json.NewEncoder(w).Encode(response)
 }

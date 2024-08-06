@@ -1,0 +1,24 @@
+.oss-project-tooltip {
+    position: fixed;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 9999;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+.oss-project-tooltip button {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.oss-project-tooltip button:hover {
+    background-color: #185abc;
+}

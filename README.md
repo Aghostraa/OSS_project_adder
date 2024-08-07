@@ -55,16 +55,6 @@ A Go application and Chrome extension to help users create YAML files for web3 p
 
 ## Usage
 
-### Go Application
-
-1. Run the application:
-
-    ```sh
-    ./yaml_project_creator
-    ```
-
-2. Follow the prompts to enter your project details.
-
 ### Chrome Extension
 
 1. Open Chrome and go to `chrome://extensions/`.

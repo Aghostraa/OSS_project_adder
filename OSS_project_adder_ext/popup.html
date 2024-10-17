@@ -112,6 +112,16 @@
         #clearDataBtn:hover {
             background-color: #fb6b04;
         }
+
+        #cleanCommitsBtn{
+            background-color: #d35a03;
+            margin-top: 10px;
+        }
+
+        #cleanCommitsBtn:hover {
+            background-color: #fb6b04;
+        }
+
         #latestFileLog {
             margin-top: 20px;
             font-size: 14px;
@@ -135,6 +145,12 @@
     </div>
     
     <h1>YAML Project Creator</h1>
+
+    <div id="currentBranchInfo">
+        Current Branch: <span id="currentBranch">Unknown</span>
+        <button id="changeToSquasherBtn">Change to Squasher</button>
+        <button id="clearDataBtn">Clear Data</button>
+    </div>
     
     <form id="projectForm">
         <label for="name">Project Name</label>
@@ -160,14 +176,27 @@
         
         <label for="mirror">Mirror URL</label>
         <input type="text" id="mirror" placeholder="https://mirror.xyz/username">
+    
+        <label for="discord">Discord URL</label>
+        <input type="text" id="discord" placeholder="https://discord.gg/invite-code">
         
         <button type="submit">Create Project</button>
     </form>
     
-    <button id="clearDataBtn">Clear Data</button>
+    
     
     <div id="latestFileLog">
         Latest file created: <span id="latestFileName">None</span>
+    </div>
+
+    <div id="addedFilesSection">
+        <h2>Added Files</h2>
+        <ul id="addedFilesList"></ul>
+    </div>
+    
+    <div id="fileContentSection">
+        <h2>File Content</h2>
+        <pre id="fileContent"></pre>
     </div>
     
     <script src="popup.js"></script>

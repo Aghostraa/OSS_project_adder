@@ -32,6 +32,7 @@ type Social struct {
 	Twitter  []URL `json:"twitter,omitempty" yaml:"twitter,omitempty"`
 	Telegram []URL `json:"telegram,omitempty" yaml:"telegram,omitempty"`
 	Mirror   []URL `json:"mirror,omitempty" yaml:"mirror,omitempty"`
+	Discord  []URL `json:"discord,omitempty" yaml:"discord,omitempty"`
 }
 
 type Response struct {
@@ -42,12 +43,23 @@ type Response struct {
 
 var (
 	latestFile string
+	addedFiles []string
 	mutex      sync.Mutex
 )
 
 func main() {
+
+	if err := pullFromUpstream(); err != nil {
+		log.Printf("Warning: Failed to pull from upstream: %v", err)
+		// Continue with server startup even if pull fails
+	}
+
 	http.HandleFunc("/createProject", createProjectHandler)
 	http.HandleFunc("/getLatestFile", getLatestFileHandler)
+	http.HandleFunc("/getCurrentBranch", getCurrentBranchHandler)
+	http.HandleFunc("/changeBranch", changeBranchHandler)
+	http.HandleFunc("/getAddedFiles", getAddedFilesHandler)
+	http.HandleFunc("/getFileContent", getFileContentHandler)
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -90,6 +102,12 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filePath := filepath.Join(dirPath, fmt.Sprintf("%s.yaml", project.Name))
+	// Check if file already exists
+	if _, err := os.Stat(filePath); err == nil {
+		writeErrorResponse(w, http.StatusConflict, fmt.Sprintf("File %s already exists", filePath))
+		return
+	}
+
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error writing file: %v", err))
 		return
@@ -98,6 +116,7 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	// Update the latest file name
 	mutex.Lock()
 	latestFile = fmt.Sprintf("%s.yaml", project.Name)
+	addedFiles = append(addedFiles, latestFile)
 	mutex.Unlock()
 
 	log.Printf("Project created: %+v\n", project)
@@ -114,18 +133,62 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := runGitCommand("git", "pull", "origin", "main", "--rebase"); err != nil {
+	/*if err := runGitCommand("git", "pull", "origin", "main", "--rebase"); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pulling changes from git: %v", err))
 		return
 	}
 	if err := runGitCommand("git", "push", "origin", "main"); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pushing changes to git: %v", err))
 		return
-	}
+	}*/
 
-	writeSuccessResponse(w, "Project created and changes pushed successfully", latestFile)
+	writeSuccessResponse(w, "Project created and changes commited", latestFile)
 }
 
+func getCurrentBranchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = "/Users/ahoura/oss-directory"
+	output, err := cmd.Output()
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error getting current branch: %v", err))
+		return
+	}
+
+	currentBranch := strings.TrimSpace(string(output))
+	writeSuccessResponse(w, "Current branch retrieved successfully", currentBranch)
+}
+
+func changeBranchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	branchName := r.URL.Query().Get("branch")
+	if branchName == "" {
+		writeErrorResponse(w, http.StatusBadRequest, "Branch name is required")
+		return
+	}
+
+	cmd := exec.Command("git", "checkout", branchName)
+	cmd.Dir = "/Users/ahoura/oss-directory"
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error changing branch: %v\nOutput: %s", err, string(output)))
+		return
+	}
+
+	writeSuccessResponse(w, fmt.Sprintf("Successfully changed to branch: %s", branchName), "")
+}
 func getLatestFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
@@ -139,6 +202,53 @@ func getLatestFileHandler(w http.ResponseWriter, r *http.Request) {
 	mutex.Unlock()
 
 	writeSuccessResponse(w, "Latest file retrieved successfully", currentLatestFile)
+}
+
+func getAddedFilesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	mutex.Lock()
+	response := struct {
+		Files []string `json:"files"`
+	}{
+		Files: addedFiles,
+	}
+	mutex.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func getFileContentHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	filename := r.URL.Query().Get("filename")
+	if filename == "" {
+		writeErrorResponse(w, http.StatusBadRequest, "Filename is required")
+		return
+	}
+
+	gitDir := "/Users/ahoura/oss-directory"
+	filePath := filepath.Join(gitDir, "data", "projects", string(filename[0]), filename)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error reading file: %v", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write(content)
 }
 
 func writeSuccessResponse(w http.ResponseWriter, message string, latestFile string) {
@@ -172,4 +282,29 @@ func writeErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	w.WriteHeader(statusCode)
 	response := Response{Error: message}
 	json.NewEncoder(w).Encode(response)
+}
+
+func pullFromUpstream() error {
+	log.Println("Attempting to pull from upstream repository...")
+
+	// First, fetch the latest changes from upstream
+	fetchCmd := exec.Command("git", "fetch", "upstream")
+	fetchCmd.Dir = "/Users/ahoura/oss-directory"
+	fetchOutput, err := fetchCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error fetching from upstream: %v\nOutput: %s", err, string(fetchOutput))
+	}
+	log.Printf("Fetch from upstream successful. Output: %s", string(fetchOutput))
+
+	// Now, merge the changes into the current branch
+	mergeCmd := exec.Command("git", "merge", "upstream/main")
+	mergeCmd.Dir = "/Users/ahoura/oss-directory"
+	mergeOutput, err := mergeCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error merging upstream changes: %v\nOutput: %s", err, string(mergeOutput))
+	}
+	log.Printf("Merge from upstream successful. Output: %s", string(mergeOutput))
+
+	log.Println("Successfully pulled and merged changes from upstream repository.")
+	return nil
 }

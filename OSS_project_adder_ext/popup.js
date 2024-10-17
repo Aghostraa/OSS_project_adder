@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.twitter) document.getElementById('twitter').value = result.twitter;
         if (result.telegram) document.getElementById('telegram').value = result.telegram;
         if (result.mirror) document.getElementById('mirror').value = result.mirror;
+        if (result.discord) document.getElementById('discord').value = result.discord;
     });
 
     function saveFormData() {
@@ -29,6 +30,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (document.getElementById('mirror').value) {
             project.social.mirror = [{ url: document.getElementById('mirror').value }];
+        }
+
+        if (document.getElementById('discord').value) {
+            project.social.discord = [{ url: document.getElementById('discord').value }];
         }
 
         if (Object.keys(project.social).length === 0) {
@@ -62,6 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (result.project.social.mirror && result.project.social.mirror.length > 0) {
                         document.getElementById('mirror').value = result.project.social.mirror[0].url || '';
                     }
+                    if (result.project.social.discord && result.project.social.discord.length > 0) {
+                        document.getElementById('discord').value = result.project.social.discord[0].url || '';
+                    }
                 }
                 console.log('Project data loaded:', result.project);
             }
@@ -85,10 +93,74 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('telegram').value = url;
         } else if (url.includes('mirror.xyz')) {
             document.getElementById('mirror').value = url;
+        } else if (url.includes('discord.com') || url.includes('discord.gg')) {
+            document.getElementById('discord').value = url;
         } else {
             document.getElementById('website').value = url;
         }
     }
+
+    function updateAddedFilesList() {
+        fetch('http://localhost:8080/getAddedFiles')
+        .then(response => response.json())
+        .then(data => {
+            const filesList = document.getElementById('addedFilesList');
+            filesList.innerHTML = '';
+            data.files.forEach(file => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#';
+                a.textContent = file;
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    fetchFileContent(file);
+                });
+                li.appendChild(a);
+                filesList.appendChild(li);
+            });
+        })
+        .catch(error => console.error('Error fetching added files:', error));
+    }
+    
+    function fetchFileContent(filename) {
+        fetch(`http://localhost:8080/getFileContent?filename=${encodeURIComponent(filename)}`)
+        .then(response => response.text())
+        .then(content => {
+            const contentArea = document.getElementById('fileContent');
+            contentArea.textContent = content;
+        })
+        .catch(error => console.error('Error fetching file content:', error));
+    }
+
+    function updateCurrentBranch() {
+        fetch('http://localhost:8080/getCurrentBranch')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('currentBranch').textContent = data.latestFile || 'Unknown';
+        })
+        .catch(error => console.error('Error fetching current branch:', error));
+    }
+    function changeBranch(branchName) {
+        fetch(`http://localhost:8080/changeBranch?branch=${encodeURIComponent(branchName)}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error changing branch: ' + data.error);
+            } else {
+                alert('Successfully changed branch: ' + data.message);
+                updateCurrentBranch();
+            }
+        })
+        .catch(error => {
+            console.error('Error changing branch:', error);
+            alert('Error changing branch: ' + error.message);
+        });
+    }
+
+    updateCurrentBranch();
+    updateAddedFilesList();
 
     chrome.storage.sync.get(['project'], function(result) {
         if (result.project) {
@@ -111,6 +183,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.project.social.mirror && result.project.social.mirror.length > 0) {
                     document.getElementById('mirror').value = result.project.social.mirror[0].url;
                 }
+                if (result.project.social.discord && result.project.social.discord.length > 0) {
+                    document.getElementById('discord').value = result.project.social.discord[0].url;
+                }
             }
             console.log('Project data loaded:', result.project);
         }
@@ -125,6 +200,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('input[type="text"]').forEach(input => {
         input.addEventListener('input', saveFormData);
+    });
+
+    document.getElementById('changeToSquasherBtn').addEventListener('click', function() {
+        changeBranch('squasher');
     });
 
     document.getElementById('projectForm').addEventListener('submit', function(event) {
@@ -149,6 +228,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (document.getElementById('mirror').value) {
             project.social.mirror = [{ url: document.getElementById('mirror').value }];
+        }
+
+        if (document.getElementById('discord').value) {
+            project.social.discord = [{ url: document.getElementById('discord').value }];
         }
 
         if (Object.keys(project.social).length === 0) {
@@ -188,6 +271,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    function cleanCommits() {
+        fetch('http://localhost:8080/cleanCommits', {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Clean commits result:', data);
+            if (data.error) {
+                alert('Error cleaning commits: ' + data.error);
+            } else {
+                alert('Commits cleaned successfully: ' + data.message);
+            }
+        })
+        .catch((error) => {
+            console.error('Error cleaning commits:', error);
+            alert('Error cleaning commits: ' + error.message);
+        });
+    }
+
     // Function to fetch and update the latest file name
     function updateLatestFileName() {
         fetch('http://localhost:8080/getLatestFile')
@@ -210,6 +312,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('input[type="text"]').forEach(input => {
                 input.value = '';
             });
+        });
+        chrome.storage.local.clear(function() {
+            console.log('Local storage cleared');
         });
     });
 

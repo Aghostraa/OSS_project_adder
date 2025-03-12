@@ -36,22 +36,22 @@ type Social struct {
 }
 
 type Response struct {
-	Message    string `json:"message"`
-	Error      string `json:"error,omitempty"`
-	LatestFile string `json:"latestFile,omitempty"`
+	Message     string   `json:"message"`
+	Error       string   `json:"error,omitempty"`
+	LatestFile  string   `json:"latestFile,omitempty"`
+	StagedFiles []string `json:"stagedFiles,omitempty"`
 }
 
 var (
-	latestFile string
-	addedFiles []string
-	mutex      sync.Mutex
+	latestFile  string
+	stagedFiles []string
+	addedFiles  []string
+	mutex       sync.Mutex
 )
 
 func main() {
-
 	if err := pullFromUpstream(); err != nil {
 		log.Printf("Warning: Failed to pull from upstream: %v", err)
-		// Continue with server startup even if pull fails
 	}
 
 	http.HandleFunc("/createProject", createProjectHandler)
@@ -60,6 +60,8 @@ func main() {
 	http.HandleFunc("/changeBranch", changeBranchHandler)
 	http.HandleFunc("/getAddedFiles", getAddedFilesHandler)
 	http.HandleFunc("/getFileContent", getFileContentHandler)
+	http.HandleFunc("/getStagedFiles", getStagedFilesHandler)
+	http.HandleFunc("/resetFiles", resetFilesHandler)
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -93,16 +95,15 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	gitDir := "/Users/ahoura/oss-directory"
-
 	firstChar := strings.ToLower(string(project.Name[0]))
 	dirPath := filepath.Join(gitDir, "data/projects", firstChar)
+
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error creating directory: %v", err))
 		return
 	}
 
 	filePath := filepath.Join(dirPath, fmt.Sprintf("%s.yaml", project.Name))
-	// Check if file already exists
 	if _, err := os.Stat(filePath); err == nil {
 		writeErrorResponse(w, http.StatusConflict, fmt.Sprintf("File %s already exists", filePath))
 		return
@@ -113,36 +114,61 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the latest file name
 	mutex.Lock()
 	latestFile = fmt.Sprintf("%s.yaml", project.Name)
 	addedFiles = append(addedFiles, latestFile)
 	mutex.Unlock()
 
-	log.Printf("Project created: %+v\n", project)
-	log.Printf("Latest file created: %s\n", latestFile)
+	// Only stage the changes, don't commit
+	if err := stageChanges(); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error staging changes: %v", err))
+		return
+	}
 
-	// Run git commands
-	if err := runGitCommand("git", "add", "."); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error adding file to git: %v", err))
-		return
-	}
-	if err := runGitCommand("git", "commit", "-m", "Add new project "+project.Name); err != nil {
-		if !strings.Contains(err.Error(), "nothing to commit, working tree clean") {
-			writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error committing file to git: %v", err))
-			return
-		}
-	}
-	/*if err := runGitCommand("git", "pull", "origin", "main", "--rebase"); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pulling changes from git: %v", err))
-		return
-	}
-	if err := runGitCommand("git", "push", "origin", "main"); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, fmt.Sprintf("Error pushing changes to git: %v", err))
-		return
-	}*/
+	writeSuccessResponse(w, "Project created and changes staged", latestFile)
+}
 
-	writeSuccessResponse(w, "Project created and changes commited", latestFile)
+func stageChanges() error {
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = "/Users/ahoura/oss-directory"
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error staging changes: %v\nOutput: %s", err, string(output))
+	}
+
+	// Get list of staged files
+	statusCmd := exec.Command("git", "diff", "--cached", "--name-only")
+	statusCmd.Dir = "/Users/ahoura/oss-directory"
+	statusOutput, err := statusCmd.Output()
+	if err != nil {
+		return fmt.Errorf("error getting staged files: %v", err)
+	}
+
+	mutex.Lock()
+	stagedFiles = strings.Split(strings.TrimSpace(string(statusOutput)), "\n")
+	mutex.Unlock()
+
+	return nil
+}
+
+func getStagedFilesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+
+	mutex.Lock()
+	response := struct {
+		Files []string `json:"files"`
+	}{
+		Files: stagedFiles,
+	}
+	mutex.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 func getCurrentBranchHandler(w http.ResponseWriter, r *http.Request) {
@@ -252,23 +278,17 @@ func getFileContentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeSuccessResponse(w http.ResponseWriter, message string, latestFile string) {
-	w.WriteHeader(http.StatusOK)
-	response := Response{Message: message, LatestFile: latestFile}
-	json.NewEncoder(w).Encode(response)
-}
+	mutex.Lock()
+	currentStagedFiles := stagedFiles
+	mutex.Unlock()
 
-func runGitCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	var out, errBuf strings.Builder
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-	cmd.Dir = "/Users/ahoura/oss-directory"
-	if err := cmd.Run(); err != nil {
-		log.Printf("Error running git command: %v\nOutput: %s\nError: %s\n", err, out.String(), errBuf.String())
-		return fmt.Errorf("error running git command: %v\nOutput: %s\nError: %s\n", err, out.String(), errBuf.String())
+	w.WriteHeader(http.StatusOK)
+	response := Response{
+		Message:     message,
+		LatestFile:  latestFile,
+		StagedFiles: currentStagedFiles,
 	}
-	log.Printf("Git command output: %s\n", out.String())
-	return nil
+	json.NewEncoder(w).Encode(response)
 }
 
 func setCorsHeaders(w http.ResponseWriter) {
@@ -307,4 +327,22 @@ func pullFromUpstream() error {
 
 	log.Println("Successfully pulled and merged changes from upstream repository.")
 	return nil
+}
+
+func resetAddedFiles() {
+	mutex.Lock()
+	addedFiles = []string{} // Clear the added files slice
+	latestFile = ""         // Reset the latest file
+	mutex.Unlock()
+}
+
+func resetFilesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErrorResponse(w, http.StatusMethodNotAllowed, "Invalid request method")
+		return
+	}
+
+	setCorsHeaders(w)
+	resetAddedFiles()
+	writeSuccessResponse(w, "Files reset successfully", "")
 }

@@ -1,6 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Popup loaded');
 
+    // Initialize favicon variables
+    let currentFaviconData = null;
+    const faviconContainer = document.getElementById('faviconContainer');
+    const faviconPreview = document.getElementById('faviconPreview');
+    const faviconOverlay = document.getElementById('faviconOverlay');
+
+    // Initialize the clear button
+    const clearButton = document.getElementById('clearButton');
+
     chrome.storage.local.get(['website', 'github', 'twitter', 'telegram', 'mirror'], function(result) {
         if (result.website) document.getElementById('website').value = result.website;
         if (result.github) document.getElementById('github').value = result.github;
@@ -8,6 +17,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.telegram) document.getElementById('telegram').value = result.telegram;
         if (result.mirror) document.getElementById('mirror').value = result.mirror;
         if (result.discord) document.getElementById('discord').value = result.discord;
+    });
+
+    // Add event listener for favicon removal
+    faviconOverlay.addEventListener('click', function() {
+        removeFavicon();
+    });
+
+    // Add event listener for the Clear button
+    clearButton.addEventListener('click', function() {
+        if (confirm('Are you sure you want to clear all form data? This action cannot be undone.')) {
+            // Clear Chrome storage
+            chrome.storage.sync.remove('project', function() {
+                console.log('Project data cleared');
+            });
+            
+            chrome.storage.local.clear(function() {
+                console.log('Local storage cleared');
+            });
+
+            // Clear all input fields
+            document.querySelectorAll('input[type="text"]').forEach(input => {
+                input.value = '';
+            });
+
+            // Clear favicon
+            removeFavicon();
+        }
+    });
+
+    // Add event listener for website input to fetch favicon
+    const websiteInput = document.getElementById('website');
+    websiteInput.addEventListener('blur', function() {
+        const websiteUrl = websiteInput.value.trim();
+        if (websiteUrl) {
+            fetchFavicon(websiteUrl);
+        }
     });
 
     chrome.storage.local.get(['persistentFiles', 'completedFiles'], function(result) {
@@ -55,6 +100,57 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Fetch favicon from a URL
+    function fetchFavicon(url) {
+        // Show loading state
+        faviconContainer.style.display = 'block';
+        faviconPreview.src = '';
+        faviconContainer.classList.add('loading');
+        
+        // Make API request to fetch favicon
+        fetch(`http://localhost:8080/fetchFavicon?url=${encodeURIComponent(url)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch favicon: ${response.status}`);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // Convert blob to data URL
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    currentFaviconData = reader.result;
+                    displayFavicon(currentFaviconData);
+                };
+                reader.readAsDataURL(blob);
+            })
+            .catch(error => {
+                console.error('Error fetching favicon:', error);
+                faviconContainer.style.display = 'none';
+                currentFaviconData = null;
+            })
+            .finally(() => {
+                faviconContainer.classList.remove('loading');
+            });
+    }
+
+    // Display favicon in the preview area
+    function displayFavicon(faviconData) {
+        if (faviconData) {
+            faviconPreview.src = faviconData;
+            faviconContainer.style.display = 'block';
+        } else {
+            faviconContainer.style.display = 'none';
+        }
+    }
+
+    // Remove favicon
+    function removeFavicon() {
+        currentFaviconData = null;
+        faviconPreview.src = '';
+        faviconContainer.style.display = 'none';
+    }
+
     function saveFormData() {
         const project = {
             name: document.getElementById('name').value,
@@ -87,6 +183,116 @@ document.addEventListener('DOMContentLoaded', function() {
 
         chrome.storage.sync.set({ project: project }, function() {
             console.log('Project data saved:', project);
+        });
+    }
+
+    // Modified form submission to handle favicon and add confirmation
+    document.getElementById('projectForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Get project name for confirmation
+        const projectName = document.getElementById('name').value;
+        
+        // Show confirmation dialog
+        if (!confirm(`Are you sure you want to create the project "${projectName}"?`)) {
+            return; // Exit if user cancels
+        }
+        
+        // Save form data to Chrome storage
+        saveFormData();
+        
+        // Get project data
+        const projectData = {
+            name: projectName,
+            displayName: document.getElementById('displayName').value,
+            description: document.getElementById('description').value,
+            websites: document.getElementById('website').value ? [{ url: document.getElementById('website').value }] : [],
+            github: document.getElementById('github').value ? [{ url: document.getElementById('github').value }] : [],
+            social: {}
+        };
+
+        if (document.getElementById('twitter').value) {
+            projectData.social.twitter = [{ url: document.getElementById('twitter').value }];
+        }
+
+        if (document.getElementById('telegram').value) {
+            projectData.social.telegram = [{ url: document.getElementById('telegram').value }];
+        }
+
+        if (document.getElementById('mirror').value) {
+            projectData.social.mirror = [{ url: document.getElementById('mirror').value }];
+        }
+
+        if (document.getElementById('discord').value) {
+            projectData.social.discord = [{ url: document.getElementById('discord').value }];
+        }
+
+        if (Object.keys(projectData.social).length === 0) {
+            delete projectData.social;
+        }
+
+        // Send project data to API
+        fetch('http://localhost:8080/createProject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(projectData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+            
+            // If the API doesn't automatically handle the favicon, manually save it
+            if (currentFaviconData && !data.faviconPath) {
+                saveFavicon(projectName, currentFaviconData);
+            }
+            
+            // Update UI with result
+            if (data.latestFile) {
+                document.getElementById('latestFileName').textContent = data.latestFile;
+                document.getElementById('latestFileLog').style.display = 'block';
+                updateAddedFilesList();
+            }
+
+            // Show success message
+            alert(`Project "${projectName}" has been created successfully!`);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert(`Error creating project: ${error.message}`);
+        });
+    });
+
+    // Save favicon for a project
+    function saveFavicon(projectName, faviconData) {
+        // Extract the base64 data part
+        const base64Data = faviconData.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        
+        // Convert to byte array
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        
+        // Create a blob from the byte array
+        const blob = new Blob([byteArray], {type: 'image/png'});
+        
+        // Send the favicon data to the API
+        const formData = new FormData();
+        formData.append('favicon', blob);
+        
+        fetch(`http://localhost:8080/saveFavicon?projectName=${encodeURIComponent(projectName)}`, {
+            method: 'POST',
+            body: blob
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Favicon saved:', data);
+        })
+        .catch(error => {
+            console.error('Error saving favicon:', error);
         });
     }
 
@@ -382,124 +588,8 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('input', saveFormData);
     });
 
-    document.querySelectorAll('input[type="text"]').forEach(input => {
-        input.addEventListener('input', saveFormData);
-    });
-
     document.getElementById('changeToSquasherBtn').addEventListener('click', function() {
         changeBranch('squasher');
-    });
-
-    document.getElementById('projectForm').addEventListener('submit', function(event) {
-        event.preventDefault();
-
-        const project = {
-            name: document.getElementById('name').value,
-            displayName: document.getElementById('displayName').value,
-            description: document.getElementById('description').value,
-            websites: document.getElementById('website').value ? [{ url: document.getElementById('website').value }] : [],
-            github: document.getElementById('github').value ? [{ url: document.getElementById('github').value }] : [],
-            social: {}
-        };
-
-        if (document.getElementById('twitter').value) {
-            project.social.twitter = [{ url: document.getElementById('twitter').value }];
-        }
-
-        if (document.getElementById('telegram').value) {
-            project.social.telegram = [{ url: document.getElementById('telegram').value }];
-        }
-
-        if (document.getElementById('mirror').value) {
-            project.social.mirror = [{ url: document.getElementById('mirror').value }];
-        }
-
-        if (document.getElementById('discord').value) {
-            project.social.discord = [{ url: document.getElementById('discord').value }];
-        }
-
-        if (Object.keys(project.social).length === 0) {
-            delete project.social;
-        }
-
-        console.log('Sending request to create project with data:', project);
-
-        fetch('http://localhost:8080/createProject', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(project)
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Project created:', data);
-            if (data.error) {
-                alert('Error creating project: ' + data.error);
-            } else {
-                alert('Project created successfully: ' + data.message);
-
-                // Update the latest file name display
-                document.getElementById('latestFileName').textContent = data.latestFile || 'None';
-
-                // Enable the git buttons
-                document.getElementById('gitAddBtn').disabled = false;
-                document.getElementById('gitCommitBtn').disabled = false;
-                document.getElementById('gitPullBtn').disabled = false;
-                document.getElementById('gitPushBtn').disabled = false;
-            }
-        })
-        .catch((error) => {
-            console.error('Error creating project:', error);
-            alert('Error creating project: ' + error.message);
-        });
-    });
-
-    function cleanCommits() {
-        fetch('http://localhost:8080/cleanCommits', {
-            method: 'POST',
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Clean commits result:', data);
-            if (data.error) {
-                alert('Error cleaning commits: ' + data.error);
-            } else {
-                alert('Commits cleaned successfully: ' + data.message);
-            }
-        })
-        .catch((error) => {
-            console.error('Error cleaning commits:', error);
-            alert('Error cleaning commits: ' + error.message);
-        });
-    }
-
-    // Function to fetch and update the latest file name
-    function updateLatestFileName() {
-        fetch('http://localhost:8080/getLatestFile')
-        .then(response => response.json())
-        .then(data => {
-            if (data.latestFile) {
-                document.getElementById('latestFileName').textContent = data.latestFile;
-            }
-        })
-        .catch(error => console.error('Error fetching latest file name:', error));
-    }
-    // Update the latest file name when the popup opens
-    updateLatestFileName();
-
-
-    document.getElementById('clearDataBtn').addEventListener('click', function() {
-        chrome.storage.sync.remove('project', function() {
-            console.log('Project data cleared');
-            // Clear all input fields
-            document.querySelectorAll('input[type="text"]').forEach(input => {
-                input.value = '';
-            });
-        });
-        chrome.storage.local.clear(function() {
-            console.log('Local storage cleared');
-        });
     });
 
     document.getElementById('gitAddBtn').addEventListener('click', function() {
